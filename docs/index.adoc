@@ -1,0 +1,248 @@
+# HTEC PoC with Azure Stacks
+:source-highlighter: rouge
+
+A new cluster has been configured to allow the PoC for HTEC to be completed.
+
+The cluster has been created in an Amido owned Azure subscription:
+
+[source]
+----
+htec.exxon.poc                               AzureCloud   4e01e03b-00d0-42e1-8406-17bab7266b99  Enabled  True
+----
+
+Two resource groups have been created as follows.
+
+[options="header",cols="1,2"]
+|===
+| Name | Description 
+| Stacks-Ancillary-Resources | Holds the resources that are required for DNS entries and holding the Terraform state files
+| htec-exxon-nonprod-euw-core | Holds the non-prod AKS cluster for the PoC
+|===
+
+== DNS Zones
+
+The domain `incubate-demo.co.uk` has been configured and has been configured to point to the Azure name servers as defined in the DNS zone in the `Stacks-Ancillary-Resources` resource group.
+
+.DNS Zone as configured in Azure
+image::images/dns-zone.png[]
+
+NOTE: The domain is owned by Russell and has been setup for use on this PoC.
+
+Two child domains have been configured from this parent domain:
+
+1. nonprod.incubate-demo.co.uk
+1. prod.incubate-demo.co.uk
+
+These domains will be used by application deployments to allow access from the Internet. It is also used when certificates are created on the cluster using Lets Encrypt with a DNS challenge.
+
+## Service Principal
+
+In order for Terraform to be able to deploy the resources and save the state in the required storage account a Service Principal (SP) has been created. This SP has Owner status on the subscription.
+
+The details of this SP are:
+
+.Service Principal details
+[source,powershell]
+----
+az ad sp create-for-rbac --role Contributor --name TerraformApp
+
+{
+  "appId": "ba61e2d8-86fa-458a-9a74-cb153e746312",
+  "displayName": "TerraformApp",
+  "password": "zwcg-YJ0llypbF8_CFb8gVpo7erycDo22D",
+  "tenant": "f88c76e1-2e79-4cd5-8b37-842f3f870d58"
+}
+----
+
+NOTE: This information is required when running Terraform deployment.
+
+## Project Creation
+
+The HTEC stacks repo has been configured using the Stacks CLI with the following `stacks.yml` file.
+
+.Stacks CLI configuration file
+[source,yaml,linenums]
+----
+log:
+  level: info
+  format: text
+  colour: true
+directory:
+  working: ./htec
+business:
+  company: htec
+  domain: infra
+  component: core
+cloud:
+  platform: azure
+network:
+  base:
+    domain:
+      external: incubate-demo.co.uk
+pipeline: azdo
+project:
+- name: htec-stacks-aks
+  settingsfile: stackcli.yml
+  framework:
+    type: infra
+    option: aks
+    version: latest
+  sourcecontrol:
+    type: github
+    url: https://github.com/amido/htec-stacks-aks
+  cloud:
+    region: westeurope
+    group: aks-cluster
+stacks:
+  dotnet:
+    webapi:
+      url: https://github.com/amido/stacks-dotnet
+      trunk: master
+    cqrs:
+      url: https://github.com/amido/stacks-dotnet-cqrs
+      trunk: master
+    events:
+      url: https://github.com/amido/stacks-dotnet-cqrs-events
+      trunk: master
+  java:
+    webapi:
+      url: https://github.com/amido/stacks-java
+      trunk: master
+    cqrs:
+      url: https://github.com/amido/stacks-java-cqrs
+      trunk: main
+    events:
+      url: https://github.com/amido/stacks-java-cqrs-events
+      trunk: main
+  nodejs:
+    csr:
+      url: https://github.com/amido/stacks-typescript-csr
+      trunk: master
+    ssr:
+      url: https://github.com/amido/stacks-typescript-ssr
+      trunk: master
+  infra:
+    aks:
+      url: https://github.com/amido/stacks-infrastructure-aks/
+      trunk: master
+terraform:
+  backend:
+    storage: htecstackstfstate
+    group: Stacks-Ancillary-Resources
+    container: tfstate
+options:
+  cmdlog: true
+  dryrun: false
+  nobanner: false
+  nocliversion: false
+----
+
+The infrastructue project does not yet fully support the new Stacks CLI so an additional file needs to be created, as specified on line 21 above. This is the settings file for the project that informs the CLI how it should be configured.
+
+[source,yaml]
+----
+framework:
+  name: dotnet
+  commands:
+    - name: dotnet
+
+pipeline:
+  - type: azdo
+    files:
+      - name: build
+        path: build/azDevOps/azure/azure-pipeline-infrastructure-aks.yml
+      - name: variable
+        path: build/azDevOps/azure/azdo-variables.yml
+    
+setup:
+  operations:
+    - action: copy
+----
+
+Once these files are in place the Stacks CLI was run with this command:
+
+[source,powershell]
+----
+stacks-cli scaffold -c ./stacks.yml
+----
+
+This created a new project, called `htec-stacks-aks` which contains all of the Terraform and pipeline files to setup the Azure DevOps build pipeline.
+
+I have create a new repository in the Amido GitHub org and pushed this code to it - https://github.com/amido/htex-stacks-aks. Note that this is a public repository.
+
+NOTE: I have not been able to setup the pipeline because of permissions in GitHub. I have raised a ticket with TechOps to add the repo to the necessary groups in GitHub.
+
+## Infrastructure Setup
+
+As it is has not been possible to configure the pipeline in Azure DevOps the setup of the cluster has been run from my local workstation.
+
+IMPORTANT: There has been an issue with the creation of the wildcard certificate for the new cluster which has meant that there is no state yet assigned to the remote storage. This will mean that the following steps will need to be repeated to get the `ssl_app_gateway` configured correctly. See <<SSL Certificate Issue>> section for information. 
+
+In order to run the Terraform templates into the correct subscription the following environment values need to be set.
+
+[source]
+----
+ARM_CLIENT_ID="ba61e2d8-86fa-458a-9a74-cb153e746312"
+ARM_CLIENT_SECRET="zwcg-YJ0llypbF8_CFb8gVpo7erycDo22D"
+ARM_TENANT_ID="f88c76e1-2e79-4cd5-8b37-842f3f870d58"
+ARM_SUBSCRIPTION_ID="4e01e03b-00d0-42e1-8406-17bab7266b99"
+
+TF_VAR_resource_group_location="westeurope"
+TF_VAR_name_company="htec"
+TF_VAR_name_project="exxon"
+TF_VAR_name_component="core"
+TF_VAR_name_environment="nonprod"
+TF_VAR_create_acr="true"
+TF_VAR_acme_email="stacks@amido.com"
+TF_VAR_is_cluster_private="true"
+TF_VAR_cluster_version="1.22.6"
+TF_VAR_stage="nonprod"
+TF_VAR_key_vault_name="htec-core-nonprod-euw"
+TF_VAR_dns_zone="nonprod.incubate-demo.co.uk"
+TF_VAR_internal_dns_zone="nonprod.incubate-demo.internal"
+TF_VAR_pfx_password="Password1"
+TF_VAR_create_dns_zone="false"
+TF_VAR_dns_resource_group="Stacks-Ancillary-Resources"
+TF_VAR_create_aksvnet="true"
+TF_VAR_create_user_identity="true"
+TF_VAR_acr_resource_group="`"`""
+TF_VAR_log_application_type="other"
+----
+
+NOTE: The above contains all of the information Terraform requires to be able to access Azure and to configure the necssary resources.
+
+Once the environment has been configured the following commands have been run.
+
+[source,bash]
+----
+cd .\deploy\azure\infra\stacks-aks\
+terraform init # this only needs to be run once
+terraform plan -out ../../../../local/tfplan
+terraform apply ../../../../local/tfplan
+----
+
+Although the state does not exist Terraform will identify what needs to be created from the resources that already exist. This will leave the `ssl_app_gateway` to be deployed after the issue with the TXT records has been resolved.
+
+The following screenshot shows the error that is displayed when trying to create the certificate:
+
+image::images/cert-error.png[]
+
+The following screen shot shows the resources that have been created in Azure.
+
+image::images/azure-resources.png[]
+
+## SSL Certificate Issue
+
+The issue that has been encountered is that the TXT challenge record for getting the Lets Encrypt certificate is not being propagated so the check does not pass. I have verified that other records, such as an A record, do propagate fully. I have not been able to work out where the issue for this is.
+
+When Terraform is running the `_acme-challenge` record is being correctly setup in the DNS zone, e.g.:
+
+image::images/acme-challenge.png[]
+
+However the TXT record is not being propagated so the Terraform does not get a valid response from Lets Encrypt so the gateway is not created.
+
+When the command `dig` is run to show the TXT record, during creation, the only thing returned is the SOA for the domain.
+
+image::images/dig-txt.png[]
+
+It appears to be an issue with TXT records as other ones, such as an A record, can be created and seen to propagate almost instantly.
