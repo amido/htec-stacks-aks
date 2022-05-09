@@ -90,4 +90,4 @@ variables:
 
   # Azure service connection
   - name: azure_service_connection
-    value: 
+    value: amido_azurerm
