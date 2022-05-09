@@ -26,7 +26,7 @@ resources:
       type: github
       name: amido/stacks-pipeline-templates
       ref: refs/tags/v2.0.1
-      endpoint: amidostacks
+      endpoint: amido
   containers:
     - container: k8s_deploy
       image: amidostacks/ci-k8s:0.0.12
