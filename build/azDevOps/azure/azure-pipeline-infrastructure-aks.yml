@@ -120,8 +120,6 @@ stages:
     variables:
       - group: amido-stacks-infra-credentials-nonprod
 
-      # Pull in the non-production credentials for the build to use
-      - group: stacks-credentials-nonprod-kv
       - name: Environment.ShortName
         value: nonprod
     jobs:
@@ -295,8 +293,6 @@ stages:
     variables:
       - group: amido-stacks-infra-credentials-prod
 
-      # Pull in the production credentials for the build to use
-      - group: stacks-credentials-prod-kv
       - name: Environment.ShortName
         value: prod
     jobs:
