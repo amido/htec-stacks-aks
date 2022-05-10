@@ -35,7 +35,7 @@ resources:
 
 variables:
   company: htec
-  project: stacks
+  project: exxon
   domain: core
   # Versioning
   version_major: 0
