@@ -34,7 +34,7 @@ resources:
       image: amidostacks/ci-tf:1.1.6
 
 variables:
-  company: amido
+  company: htec
   project: stacks
   domain: core
   # Versioning
@@ -71,10 +71,10 @@ variables:
   # DEFAULT IMAGE RUNNER
   pool_vm_image: ubuntu-20.04
   # Ensure you find this definition in the K8s and Azure steps to prefix with desired subdomain assignment
-  base_domain_nonprod: nonprod.amidostacks.com
-  base_domain_internal_nonprod: nonprod.amidostacks.internal
-  base_domain_prod: prod.amidostacks.com
-  base_domain_internal_prod: prod.amidostacks.internal
+  base_domain_nonprod: nonprod.incubate-demo.co.uk
+  base_domain_internal_nonprod: nonprod.incubate-demo.internal
+  base_domain_prod: prod.incubate-demo.co.uk
+  base_domain_internal_prod: prod.incubate-demo.internal
   # Yamllint
   yamllint_config_file: "${{ variables.self_repo_dir }}/yamllint.conf"
   yamllint_scan_directory: "."
