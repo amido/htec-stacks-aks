@@ -66,7 +66,7 @@ variables:
   # AKS/AZURE
   # This will always be predictably named by setting your company - project - stage - location - compnonent names above
   # IT IS SET per stage as an output to be consumed by deploy stage
-  aks_cluster_version: "1.23.5"
+  aks_cluster_version: "1.21.9"
   region: "westeurope"
   # DEFAULT IMAGE RUNNER
   pool_vm_image: ubuntu-20.04
