@@ -112,12 +112,12 @@ variable "log_application_type" {
   type = string
 }
 
-variable "key_vault_name" {
+variable key_vault_name {
   type        = string
   description = "Key Vault name - if not specificied will default to computed naming convention"
 }
 
-variable "acme_email" {
+variable acme_email {
   type        = string
   description = "Email for Acme registration, must be a valid email"
 }
